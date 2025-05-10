@@ -6,7 +6,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { useRouter } from "next/navigation"; // Import useRouter
+import { useRouter } from "next/navigation";
 
 interface AuthenticationProps {
   isOpen: boolean;
@@ -19,50 +19,43 @@ const Authentication: React.FC<AuthenticationProps> = ({ isOpen, onClose }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    setIsLoading(true); // Start loading
+  
     const endpoint = isSignUp ? "/api/auth/signup" : "/api/auth/signin";
     const payload = isSignUp
       ? { name: username, email, password }
       : { email, password };
-
+  
     try {
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+  
+      const data = await response.json();
+      console.log("Response Data:", data); // Add this line
+  
+      if (!response.ok) throw new Error(data.error || "Authentication failed");
 
-      let data;
-      try {
-        data = await response.json();
-      } catch {
-        throw new Error("Server returned invalid JSON");
-      }
+      if (data.token) localStorage.setItem("token", data.token);
 
-      if (!response.ok) {
-        throw new Error(data.error || "Authentication failed");
-      }
-
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-      }
-
-      // Success: close modal, redirect to dashboard
       onClose();
-      router.push("/dashboard"); // Navigate to the dashboard
+      router.push("/dashboard");
     } catch (error: any) {
       console.error("Auth error:", error.message);
-      alert(error.message); // Optional: show user-friendly error
+      alert(error.message);
+    } finally {
+      setIsLoading(false); // End loading
     }
-  };
+  };  
 
   return (
     <div className="fixed inset-0 flex justify-center items-center z-50 bg-[#000814] bg-opacity-50">
@@ -77,42 +70,40 @@ const Authentication: React.FC<AuthenticationProps> = ({ isOpen, onClose }) => {
           <h2 className="text-xl font-serif font-bold text-[#000814]">
             {isSignUp ? "Sign Up" : "Sign In"}
           </h2>
-          <button
-            onClick={onClose}
-            className="text-2xl text-[#000814] font-light"
-          >
+          <button onClick={onClose} className="text-2xl text-[#000814] font-light">
             <X />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
-          {isSignUp ? (
+          {isSignUp && (
             <input
-              type="username"
-              required
+              type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Username"
-              className="border border-gray-300 font-sans px-4 py-2 rounded-md text-sm"
+              className="border border-gray-300 px-4 py-2 rounded-md text-sm"
+              disabled={isLoading} // 👈 Disable during load
+              required
             />
-          ) : (
-            <></>
           )}
           <input
             type="email"
-            required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
-            className="border border-gray-300 font-sans px-4 py-2 rounded-md text-sm"
+            className="border border-gray-300 px-4 py-2 rounded-md text-sm"
+            disabled={isLoading}
+            required
           />
           <input
             type="password"
-            required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            className="border border-gray-300 font-sans px-4 py-2 rounded-md text-sm"
+            className="border border-gray-300 px-4 py-2 rounded-md text-sm"
+            disabled={isLoading}
+            required
           />
 
           {isSignUp && (
@@ -122,6 +113,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ isOpen, onClose }) => {
                 checked={agreeToTerms}
                 onChange={(e) => setAgreeToTerms(e.target.checked)}
                 className="mt-1"
+                disabled={isLoading}
               />
               <span>
                 I understand and agree to the{" "}
@@ -146,14 +138,23 @@ const Authentication: React.FC<AuthenticationProps> = ({ isOpen, onClose }) => {
 
           <button
             type="submit"
-            disabled={isSignUp && !agreeToTerms}
-            className={`py-2 text-white font-serif rounded-md transition-all ${
-              isSignUp && !agreeToTerms
+            disabled={(isSignUp && !agreeToTerms) || isLoading}
+            className={`py-2 text-white font-serif rounded-md transition-all flex items-center justify-center ${
+              (isSignUp && !agreeToTerms) || isLoading
                 ? "bg-gray-400 cursor-not-allowed"
                 : "bg-[#000814] hover:bg-[#1a1a1a]"
             }`}
           >
-            {isSignUp ? "Create Account" : "Sign In"}
+            {isLoading ? (
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>{isSignUp ? "Creating..." : "Signing in..."}</span>
+              </div>
+            ) : isSignUp ? (
+              "Create Account"
+            ) : (
+              "Sign In"
+            )}
           </button>
         </form>
 
@@ -162,6 +163,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ isOpen, onClose }) => {
           <button
             onClick={() => setIsSignUp(!isSignUp)}
             className="text-[#000814] font-sans font-semibold hover:underline ml-1"
+            disabled={isLoading}
           >
             {isSignUp ? "Sign In" : "Sign Up"}
           </button>
